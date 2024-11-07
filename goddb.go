@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -42,9 +43,13 @@ func valueOf(t any) (reflect.Value, error) {
 	return val, nil
 }
 
+var valueTimeNonZero = time.Now()
+
 var (
-	typeStringSlice = reflect.TypeOf([]string{})
+	typeTime = reflect.TypeOf(valueTimeNonZero)
 )
+
+const timeFormat = "2006-01-02T15:04:05.000000000Z07:00"
 
 // makeAttributeValue can return nil, nil if it is empty
 func makeAttributeValue(v reflect.Value) (types.AttributeValue, error) {
@@ -57,8 +62,19 @@ func makeAttributeValue(v reflect.Value) (types.AttributeValue, error) {
 		return &types.AttributeValueMemberN{Value: strconv.FormatUint(v.Uint(), 10)}, nil
 	case reflect.Float32, reflect.Float64:
 		return &types.AttributeValueMemberN{Value: formatFloat(v.Float())}, nil
+	case reflect.Bool:
+		return &types.AttributeValueMemberBOOL{Value: v.Bool()}, nil
 	case reflect.Slice:
 		return makeSliceAttributeValue(v)
+	case reflect.Struct:
+		iface := v.Interface()
+		switch v.Type() {
+		case typeTime:
+			t := iface.(time.Time)
+			return &types.AttributeValueMemberS{Value: t.UTC().Format(timeFormat)}, nil
+		default:
+			return nil, fmt.Errorf("unsupported type %T", iface)
+		}
 	default:
 		iface := v.Interface()
 		if stringer, ok := iface.(fmt.Stringer); ok {
@@ -154,6 +170,15 @@ func taggedAttributeValue(ps []tagValuePair) (types.AttributeValue, error) {
 			b.WriteString(strconv.FormatUint(value.Uint(), 10))
 		case reflect.Float32, reflect.Float64:
 			b.WriteString(formatFloat(value.Float()))
+		case reflect.Struct:
+			iface := value.Interface()
+			switch value.Type() {
+			case typeTime:
+				t := iface.(time.Time)
+				b.WriteString(t.UTC().Format(timeFormat))
+			default:
+				return nil, fmt.Errorf("unsupported type %T", iface)
+			}
 		default:
 			iface := value.Interface()
 			if stringer, ok := iface.(fmt.Stringer); ok {
@@ -314,6 +339,23 @@ func setFieldValFromAttrVal(fieldVal reflect.Value, v types.AttributeValue) {
 			}
 			fieldVal.SetFloat(i)
 		}
+	case reflect.Bool:
+		n, ok := v.(*types.AttributeValueMemberBOOL)
+		if ok {
+			fieldVal.SetBool(n.Value)
+		}
+	case reflect.Struct:
+		switch fieldVal.Type() {
+		case typeTime:
+			s, ok := v.(*types.AttributeValueMemberS)
+			if ok {
+				t, err := time.Parse(timeFormat, s.Value)
+				if err != nil {
+					break
+				}
+				fieldVal.Set(reflect.ValueOf(t))
+			}
+		}
 	case reflect.Slice:
 		setSliceFieldValFromAttrVal(fieldVal, v)
 	}
@@ -434,6 +476,15 @@ func setFieldValFromVal(fieldVal reflect.Value, v string) {
 			break
 		}
 		fieldVal.SetFloat(i)
+	case reflect.Struct:
+		switch fieldVal.Type() {
+		case typeTime:
+			t, err := time.Parse(timeFormat, v)
+			if err != nil {
+				break
+			}
+			fieldVal.Set(reflect.ValueOf(t))
+		}
 	}
 }
 
@@ -453,14 +504,53 @@ func loadValues[T any](items []map[string]types.AttributeValue) ([]*T, error) {
 	return result, nil
 }
 
+// func getFieldNameFromTest[T any](test func(*T) any) string {
+// 	input := new(T)
+// 	v := reflect.ValueOf(input).Elem()
+// 	t := v.Type()
+// 	var strs int
+// 	var ints int64
+// 	var uints uint64
+// 	var floats float64
+// 	for i := 0; i < t.NumField(); i++ {
+// 		ft := t.Field(i)
+// 		if !ft.IsExported() {
+// 			continue
+// 		}
+// 		fv := v.Field(i)
+// 		switch fv.Kind() {
+// 		case reflect.String:
+// 			strs++
+// 			fv.SetString(strconv.Itoa(strs))
+// 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+// 			ints++
+// 			fv.SetInt(ints)
+// 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+// 			uints++
+// 			fv.SetUint(uints)
+// 		case reflect.Float32, reflect.Float64:
+// 			floats++
+// 			fv.SetFloat(floats)
+// 		}
+// 	}
+// 	output := test(input)
+// 	for i := 0; i < t.NumField(); i++ {
+// 		ft := t.Field(i)
+// 		if !ft.IsExported() {
+// 			continue
+// 		}
+// 		fv := v.Field(i)
+// 		if fv.Interface() == output {
+// 			return ft.Name
+// 		}
+// 	}
+// 	return ""
+// }
+
 func getFieldNameFromTest[T any](test func(*T) any) string {
 	input := new(T)
 	v := reflect.ValueOf(input).Elem()
 	t := v.Type()
-	var strs int
-	var ints int64
-	var uints uint64
-	var floats float64
 	for i := 0; i < t.NumField(); i++ {
 		ft := t.Field(i)
 		if !ft.IsExported() {
@@ -469,27 +559,23 @@ func getFieldNameFromTest[T any](test func(*T) any) string {
 		fv := v.Field(i)
 		switch fv.Kind() {
 		case reflect.String:
-			strs++
-			fv.SetString(strconv.Itoa(strs))
+			fv.SetString("a")
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			ints++
-			fv.SetInt(ints)
+			fv.SetInt(1)
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			uints++
-			fv.SetUint(uints)
+			fv.SetUint(1)
+		case reflect.Bool:
+			fv.SetBool(true)
 		case reflect.Float32, reflect.Float64:
-			floats++
-			fv.SetFloat(floats)
+			fv.SetFloat(1)
+		case reflect.Struct:
+			switch fv.Type() {
+			case typeTime:
+				fv.Set(reflect.ValueOf(valueTimeNonZero))
+			}
 		}
-	}
-	output := test(input)
-	for i := 0; i < t.NumField(); i++ {
-		ft := t.Field(i)
-		if !ft.IsExported() {
-			continue
-		}
-		fv := v.Field(i)
-		if fv.Interface() == output {
+		output := test(input)
+		if !reflect.ValueOf(output).IsZero() {
 			return ft.Name
 		}
 	}

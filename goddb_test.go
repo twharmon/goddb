@@ -3,6 +3,7 @@ package goddb_test
 import (
 	"goddb"
 	"testing"
+	"time"
 )
 
 func TestBasic(t *testing.T) {
@@ -409,6 +410,44 @@ func TestSets(t *testing.T) {
 	assertEq(t, len(outputFloatSet.Values), 3)
 	assertEq(t, goddb.Delete(&FloatSet{ID: "abc"}).Exec(), nil)
 	_, err = goddb.Get(&FloatSet{ID: "abc"}).Consistent().Exec()
+	assertEq(t, err, goddb.ErrItemNotFound)
+}
+
+func TestBool(t *testing.T) {
+	type Bool struct {
+		ID    string `goddb:"PK,SK"`
+		Value bool
+	}
+	assertEq(t, goddb.Put(&Bool{ID: "abc", Value: true}).Exec(), nil)
+	output, err := goddb.Get(&Bool{ID: "abc"}).Consistent().Exec()
+	assertEq(t, err, nil)
+	assertEq(t, output.Value, true)
+	assertEq(t, goddb.Update(&Bool{ID: "abc"}).Remove(func(t *Bool) any { return t.Value }).Exec(), nil)
+	output, err = goddb.Get(&Bool{ID: "abc"}).Consistent().Exec()
+	assertEq(t, err, nil)
+	assertEq(t, output.Value, false)
+	assertEq(t, goddb.Delete(&Bool{ID: "abc"}).Exec(), nil)
+	_, err = goddb.Get(&Bool{ID: "abc"}).Consistent().Exec()
+	assertEq(t, err, goddb.ErrItemNotFound)
+}
+
+func TestTime(t *testing.T) {
+	type Time struct {
+		ID    time.Time `goddb:"PK,SK"`
+		Value time.Time
+	}
+	id := time.Now()
+	value := time.Now()
+	assertEq(t, goddb.Put(&Time{ID: id, Value: value}).Exec(), nil)
+	output, err := goddb.Get(&Time{ID: id}).Consistent().Exec()
+	assertEq(t, err, nil)
+	assertEq(t, output.Value.UTC().Format(time.RFC3339Nano), value.UTC().Format(time.RFC3339Nano))
+	assertEq(t, goddb.Update(&Time{ID: id}).Remove(func(t *Time) any { return t.Value }).Exec(), nil)
+	output, err = goddb.Get(&Time{ID: id}).Consistent().Exec()
+	assertEq(t, err, nil)
+	assertEq(t, output.Value.UTC().Format(time.RFC3339Nano), time.Time{}.UTC().Format(time.RFC3339Nano))
+	assertEq(t, goddb.Delete(&Time{ID: id}).Exec(), nil)
+	_, err = goddb.Get(&Time{ID: id}).Consistent().Exec()
 	assertEq(t, err, goddb.ErrItemNotFound)
 }
 
