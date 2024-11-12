@@ -329,6 +329,9 @@ func (r *QueryRequest[T]) execBetween() ([]*T, error) {
 	startItem, err := makeItem(startval.Type(), startval, func(attr string) bool {
 		return strings.HasSuffix(attr, "SK")
 	})
+	if err != nil {
+		return nil, wrap(err)
+	}
 	endItem, err := makeItem(endval.Type(), endval, func(attr string) bool {
 		return strings.HasSuffix(attr, "SK")
 	})

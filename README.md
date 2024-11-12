@@ -8,22 +8,56 @@ An opinionated package to simplify working with a single table in AWS DynamoDB.
 - Your *unshared* global secondary indexes (those used by only one Go struct) must be simple with partition `<StructName>GSI` (string in table). 
 - You must specify primary key and global secondary indexes on your struct fields with the `goddb` tag.
 - Struct fields tagged with primary key or global secondary indexes must one of the following types:
-    - string
-    - int
-    - int8
-    - uint
-    - uint8
-    - int16
-    - uint16
-    - int32
-    - uint32
-    - int64
-    - uint64
-    - float32
-    - float64
+  - string
+  - int
+  - int8
+  - uint
+  - uint8
+  - int16
+  - uint16
+  - int32
+  - uint32
+  - int64
+  - uint64
+  - float32
+  - float64
+  - time.Time
+  - time.Duration
 - The following environment vairables must be set:
-    - AWS_REGION
-    - GODDB_TABLE_NAME
+  - AWS_REGION
+  - GODDB_TABLE_NAME
+- Supported types
+  - string => S
+  - bool => BOOL
+  - int => N
+  - int8 => N
+  - int16 => N
+  - int32 => N
+  - int64 => N
+  - uint => N
+  - uint8 => N
+  - uint16 => N
+  - uint32 => N
+  - uint64 => N
+  - float32 => N
+  - float64 => N
+  - time.Time => S
+  - time.Duration => N
+  - []string => SS
+  - []int => NS
+  - []int8 => NS
+  - []int16 => NS
+  - []int32 => NS
+  - []int64 => NS
+  - []uint => NS
+  - []uint8 => NS
+  - []uint16 => NS
+  - []uint32 => NS
+  - []uint64 => NS
+  - []float32 => NS
+  - []float64 => NS
+  - []time.Time => SS
+
 
 ## Examples
 ```go

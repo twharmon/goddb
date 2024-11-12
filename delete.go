@@ -10,8 +10,9 @@ import (
 )
 
 type DeleteRequest[T any] struct {
-	value *T
-	input *dynamodb.DeleteItemInput
+	value     *T
+	input     *dynamodb.DeleteItemInput
+	condition *Condition[T]
 }
 
 func (r *DeleteRequest[T]) Exec() error {
@@ -26,11 +27,25 @@ func (r *DeleteRequest[T]) Exec() error {
 	if err != nil {
 		return wrap(err)
 	}
+	if r.condition != nil {
+		exp, names, values, err := r.condition.expression(len(r.input.ExpressionAttributeValues))
+		if err != nil {
+			return wrap(err)
+		}
+		r.input.ConditionExpression = &exp
+		r.input.ExpressionAttributeNames = merge(r.input.ExpressionAttributeNames, names)
+		r.input.ExpressionAttributeValues = merge(r.input.ExpressionAttributeValues, values)
+	}
 	_, err = client.DeleteItem(context.Background(), r.input)
 	if err != nil {
 		return wrap(err)
 	}
 	return nil
+}
+
+func (r *DeleteRequest[T]) If(condition *Condition[T]) *DeleteRequest[T] {
+	r.condition = condition
+	return r
 }
 
 func Delete[T any](v *T) *DeleteRequest[T] {

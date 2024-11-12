@@ -13,12 +13,13 @@ import (
 )
 
 type UpdateRequest[T any] struct {
-	item    *T
-	sets    []*T
-	adds    []*T
-	deletes []*T
-	removes []func(*T) any
-	input   *dynamodb.UpdateItemInput
+	item      *T
+	sets      []*T
+	adds      []*T
+	deletes   []*T
+	removes   []func(*T) any
+	input     *dynamodb.UpdateItemInput
+	condition *Condition[T]
 }
 
 func Update[T any](item *T) *UpdateRequest[T] {
@@ -50,6 +51,11 @@ func (r *UpdateRequest[T]) Delete(t *T) *UpdateRequest[T] {
 	return r
 }
 
+func (r *UpdateRequest[T]) If(condition *Condition[T]) *UpdateRequest[T] {
+	r.condition = condition
+	return r
+}
+
 func (r *UpdateRequest[T]) Exec() error {
 	wrap := func(err error) error {
 		return fmt.Errorf("goddb update: %w", err)
@@ -59,6 +65,9 @@ func (r *UpdateRequest[T]) Exec() error {
 		return wrap(err)
 	}
 	r.input.Key, err = makeItem(val.Type(), val, func(attr string) bool { return attr == "SK" || attr == "PK" })
+	if err != nil {
+		return wrap(err)
+	}
 	var exp strings.Builder
 	if err := r.updateExpressionSet(&exp); err != nil {
 		return wrap(err)
@@ -73,6 +82,15 @@ func (r *UpdateRequest[T]) Exec() error {
 		return wrap(err)
 	}
 	r.input.UpdateExpression = aws.String(exp.String())
+	if r.condition != nil {
+		exp, names, values, err := r.condition.expression(len(r.input.ExpressionAttributeValues))
+		if err != nil {
+			return wrap(err)
+		}
+		r.input.ConditionExpression = &exp
+		r.input.ExpressionAttributeNames = merge(r.input.ExpressionAttributeNames, names)
+		r.input.ExpressionAttributeValues = merge(r.input.ExpressionAttributeValues, values)
+	}
 	_, err = client.UpdateItem(context.Background(), r.input)
 	if err != nil {
 		return wrap(err)

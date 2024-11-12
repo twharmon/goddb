@@ -2,6 +2,7 @@ package goddb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -13,11 +14,12 @@ import (
 )
 
 type PutRequest[T any] struct {
-	input *dynamodb.PutItemInput
-	item  T
+	input     *dynamodb.PutItemInput
+	item      *T
+	condition *Condition[T]
 }
 
-func Put[T any](item T) *PutRequest[T] {
+func Put[T any](item *T) *PutRequest[T] {
 	return &PutRequest[T]{
 		item: item,
 		input: &dynamodb.PutItemInput{
@@ -29,6 +31,11 @@ func Put[T any](item T) *PutRequest[T] {
 type tagValuePair struct {
 	tag   string
 	value reflect.Value
+}
+
+func (r *PutRequest[T]) If(condition *Condition[T]) *PutRequest[T] {
+	r.condition = condition
+	return r
 }
 
 func (r *PutRequest[T]) Exec() error {
@@ -66,8 +73,21 @@ func (r *PutRequest[T]) Exec() error {
 			}
 		}
 	}
+	if r.condition != nil {
+		exp, names, values, err := r.condition.expression(len(r.input.ExpressionAttributeValues))
+		if err != nil {
+			return wrap(err)
+		}
+		r.input.ConditionExpression = &exp
+		r.input.ExpressionAttributeNames = merge(r.input.ExpressionAttributeNames, names)
+		r.input.ExpressionAttributeValues = merge(r.input.ExpressionAttributeValues, values)
+	}
 	_, err = client.PutItem(context.Background(), r.input)
 	if err != nil {
+		var ex *types.ConditionalCheckFailedException
+		if errors.As(err, &ex) {
+			return ErrConditionFailed
+		}
 		return wrap(err)
 	}
 	return nil
