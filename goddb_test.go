@@ -661,4 +661,16 @@ func TestConditionals(t *testing.T) {
 		_, err := goddb.Get(&Put{ID: "abc"}).Consistent().Exec()
 		assert.Equal(t, err, goddb.ErrItemNotFound)
 	})
+	t.Run("attribute not exists: primary key", func(t *testing.T) {
+		type Put struct {
+			ID  string `goddb:"PK,SK"`
+			Foo string
+			Bar string
+		}
+		assert.Equal(t, goddb.Put(&Put{ID: "abc", Foo: "foo"}).Exec(), nil)
+		assert.Equal(t, goddb.Put(&Put{ID: "abc"}).If(goddb.AttributeNotExists(func(p *Put) any { return p.ID })).Exec(), goddb.ErrConditionFailed)
+		assert.Equal(t, goddb.Delete(&Put{ID: "abc"}).Exec(), nil)
+		_, err := goddb.Get(&Put{ID: "abc"}).Consistent().Exec()
+		assert.Equal(t, err, goddb.ErrItemNotFound)
+	})
 }

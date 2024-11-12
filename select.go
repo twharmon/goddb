@@ -1,6 +1,9 @@
 package goddb
 
-import "reflect"
+import (
+	"reflect"
+	"strings"
+)
 
 func getFieldNameFromTest[T any](test func(*T) any) string {
 	input := new(T)
@@ -34,6 +37,10 @@ func getFieldNameFromTest[T any](test func(*T) any) string {
 		}
 		output := test(input)
 		if !reflect.ValueOf(output).IsZero() {
+			if tag := ft.Tag.Get("goddb"); tag != "" {
+				attrs := strings.Split(tag, ",")
+				return attrs[0]
+			}
 			return ft.Name
 		}
 	}
