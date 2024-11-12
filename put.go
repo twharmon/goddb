@@ -81,6 +81,11 @@ func (r *PutRequest[T]) Exec() error {
 		r.input.ConditionExpression = &exp
 		r.input.ExpressionAttributeNames = merge(r.input.ExpressionAttributeNames, names)
 		r.input.ExpressionAttributeValues = merge(r.input.ExpressionAttributeValues, values)
+		fmt.Println(exp)
+		fmt.Println(r.input.ExpressionAttributeNames)
+		for k, v := range r.input.ExpressionAttributeValues {
+			fmt.Println(k, v)
+		}
 	}
 	_, err = client.PutItem(context.Background(), r.input)
 	if err != nil {
