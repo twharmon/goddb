@@ -1,4 +1,4 @@
-module goddb
+module github.com/twharmon/goddb
 
 go 1.23.2
 

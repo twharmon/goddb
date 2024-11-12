@@ -1,11 +1,11 @@
 package goddb_test
 
 import (
-	"goddb"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/twharmon/goddb"
 )
 
 func TestBasic(t *testing.T) {
