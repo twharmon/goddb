@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -42,7 +41,6 @@ func (r *PutRequest[T]) Exec() error {
 	wrap := func(err error) error {
 		return fmt.Errorf("goddb put: %w", err)
 	}
-	r.input.Item = make(map[string]types.AttributeValue)
 	val, err := valueOf(r.item)
 	if err != nil {
 		return wrap(err)
@@ -52,26 +50,8 @@ func (r *PutRequest[T]) Exec() error {
 	if err != nil {
 		return wrap(err)
 	}
-	skAttrCounts := make(map[string]int)
-	for i := 0; i < ty.NumField(); i++ {
-		ft := ty.Field(i)
-		if !ft.IsExported() {
-			continue
-		}
-		if tag := ft.Tag.Get("goddb"); tag != "" {
-			attrs := strings.Split(tag, ",")
-			for _, attr := range attrs {
-				if strings.HasSuffix(attr, "SK") {
-					skAttrCounts[attr]++
-					if skAttrCounts[attr] > 1 {
-						return wrap(fmt.Errorf("found more than one field with sort key %s", attr))
-					}
-				}
-			}
-			if val.Field(i).IsZero() {
-				return wrap(fmt.Errorf("field %s can not be zero value", ft.Name))
-			}
-		}
+	if err := validateCompleteKey(ty, val); err != nil {
+		return wrap(err)
 	}
 	if r.condition != nil {
 		exp, names, values, err := r.condition.expression(len(r.input.ExpressionAttributeValues))

@@ -248,6 +248,31 @@ func makeItem(ty reflect.Type, val reflect.Value, filter func(string) bool) (map
 	return item, nil
 }
 
+func validateCompleteKey(ty reflect.Type, val reflect.Value) error {
+	skAttrCounts := make(map[string]int)
+	for i := 0; i < ty.NumField(); i++ {
+		ft := ty.Field(i)
+		if !ft.IsExported() {
+			continue
+		}
+		if tag := ft.Tag.Get("goddb"); tag != "" {
+			attrs := strings.Split(tag, ",")
+			for _, attr := range attrs {
+				if strings.HasSuffix(attr, "SK") {
+					skAttrCounts[attr]++
+					if skAttrCounts[attr] > 1 {
+						return fmt.Errorf("found more than one field with sort key %s", attr)
+					}
+				}
+			}
+			if val.Field(i).IsZero() {
+				return fmt.Errorf("field %s can not be zero value", ft.Name)
+			}
+		}
+	}
+	return nil
+}
+
 func setFieldValues(val reflect.Value, item map[string]types.AttributeValue) error {
 	ty := val.Type()
 	var skFieldVal reflect.Value
