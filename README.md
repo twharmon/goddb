@@ -91,8 +91,8 @@ type Post struct {
 }
 
 // add some posts to table
-goddb.Put(&User{ID: "hello", Author: "bill", Body: "Hi!"}).Exec()
-goddb.Put(&User{ID: "bye", Name: "bill", Body: "Bye!"}).Exec()
+goddb.Put(&Post{ID: "hello", Author: "bill", Body: "Hi!"}).Exec()
+goddb.Put(&Post{ID: "bye", Name: "bill", Body: "Bye!"}).Exec()
 
 // query all of Bill's posts
 posts, _ := goddb.Query(&Post{Author: "bill"}).Exec()
