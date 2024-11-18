@@ -20,6 +20,7 @@ type QueryRequest[T any] struct {
 	betweenStart *T
 	betweenEnd   *T
 	offset       *string
+	consistent   bool
 }
 
 func Query[T any](item *T) *QueryRequest[T] {
@@ -42,6 +43,11 @@ func (r *QueryRequest[T]) Between(start *T, end *T) *QueryRequest[T] {
 func (r *QueryRequest[T]) Page(maxSize int, offset *string) *QueryRequest[T] {
 	r.limit = maxSize
 	r.offset = offset
+	return r
+}
+
+func (r *QueryRequest[T]) Consistent() *QueryRequest[T] {
+	r.consistent = true
 	return r
 }
 
@@ -93,6 +99,9 @@ func (r *QueryRequest[T]) execBeginsWith() ([]*T, error) {
 	}
 	input := &dynamodb.QueryInput{
 		TableName: aws.String(os.Getenv("GODDB_TABLE_NAME")),
+	}
+	if r.consistent {
+		input.ConsistentRead = aws.Bool(true)
 	}
 	if r.limit > 0 {
 		input.Limit = aws.Int32(int32(r.limit))
@@ -193,6 +202,9 @@ func (r *QueryRequest[T]) scan(index string) ([]*T, error) {
 	}
 	if r.limit > 0 {
 		input.Limit = aws.Int32(int32(r.limit))
+	}
+	if r.consistent {
+		input.ConsistentRead = aws.Bool(true)
 	}
 	for {
 		input.ExclusiveStartKey = lek
@@ -343,6 +355,9 @@ func (r *QueryRequest[T]) execBetween() ([]*T, error) {
 	}
 	if r.limit > 0 {
 		input.Limit = aws.Int32(int32(r.limit))
+	}
+	if r.consistent {
+		input.ConsistentRead = aws.Bool(true)
 	}
 	if index != "" {
 		input.IndexName = &index
